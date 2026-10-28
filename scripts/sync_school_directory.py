@@ -90,7 +90,12 @@ def collect(key, fetch=download, *, stats=None):
                     stats['withoutSchoolCode'] = stats.get('withoutSchoolCode',0)+1
                 continue
             if not isinstance(values[1],str) or not re.fullmatch(r'\d{7}', values[1]):
-                raise DirectoryError('Invalid school code', {'isString':isinstance(values[1],str),'length':min(len(str(values[1])),1000),'asciiDigits':isinstance(values[1],str) and values[1].isascii() and values[1].isdigit()})
+                details = {'isString':isinstance(values[1],str),'length':min(len(str(values[1])),1000),'asciiDigits':isinstance(values[1],str) and values[1].isascii() and values[1].isdigit()}
+                # These are public school identities, not credential diagnostics.
+                for field, value in [('publicSchoolCode',values[1]),('publicSchoolName',values[2])]:
+                    if isinstance(value,str) and 0<len(value)<=80 and key not in value:
+                        details[field]=value
+                raise DirectoryError('Invalid school code', details)
             for field_index, label in enumerate(['office','code','name','type','region','address']):
                 if not isinstance(values[field_index],str) or not values[field_index].strip():
                     raise DirectoryError('Missing school '+label)
