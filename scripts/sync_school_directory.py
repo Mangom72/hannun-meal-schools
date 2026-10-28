@@ -89,7 +89,7 @@ def collect(key, fetch=download, *, stats=None):
                 if stats is not None:
                     stats['withoutSchoolCode'] = stats.get('withoutSchoolCode',0)+1
                 continue
-            if not isinstance(values[1],str) or not re.fullmatch(r'\d{7}', values[1]):
+            if not isinstance(values[1],str) or not re.fullmatch(r'[A-Z0-9]{7}', values[1]):
                 details = {'isString':isinstance(values[1],str),'length':min(len(str(values[1])),1000),'asciiDigits':isinstance(values[1],str) and values[1].isascii() and values[1].isdigit()}
                 # These are public school identities, not credential diagnostics.
                 for field, value in [('publicSchoolCode',values[1]),('publicSchoolName',values[2])]:

@@ -24,6 +24,10 @@ def page(rows, total):
 
 
 class SchoolDirectoryTests(unittest.TestCase):
+    def test_official_alphanumeric_national_school_code_is_retained(self):
+        result=directory.collect('test-issued-key',lambda _:page([row('C035903',office='N10')],1))
+        self.assertEqual(['N10','C035903'],result[0][:2])
+
     def test_rows_without_an_official_lookup_code_are_counted_without_inventing_ids(self):
         stats={}
         result=directory.collect('test-issued-key',lambda _:page([row(''),row('7010057')],2),stats=stats)
