@@ -26,7 +26,8 @@ class NoRedirect(HTTPRedirectHandler):
 
 
 def download_bytes(url):
-    with build_opener(NoRedirect).open(Request(url, headers={'Accept': 'application/json'}), timeout=30) as response:
+    # NEIS selects JSON with Type=json; Accept: application/json returns HTTP 500.
+    with build_opener(NoRedirect).open(Request(url, headers={'Accept': '*/*'}), timeout=30) as response:
         if response.status != 200:
             raise DirectoryError('HTTP failure')
         data = response.read(8 * 1024 * 1024 + 1)

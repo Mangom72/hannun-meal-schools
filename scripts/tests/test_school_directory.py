@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
+from urllib.error import HTTPError
+from types import SimpleNamespace
 
 spec = importlib.util.spec_from_file_location('directory', Path(__file__).resolve().parents[1] / 'sync_school_directory.py')
 directory = importlib.util.module_from_spec(spec)
@@ -22,6 +24,17 @@ def page(rows, total):
 
 
 class SchoolDirectoryTests(unittest.TestCase):
+    def test_neis_download_avoids_json_accept_header_that_triggers_http_500(self):
+        class Response(io.BytesIO):
+            status=200
+        def open_request(request, timeout):
+            if request.get_header('Accept') == 'application/json':
+                raise HTTPError(request.full_url,500,'NEIS content negotiation failure',None,None)
+            self.assertEqual('*/*',request.get_header('Accept'))
+            return Response(b'{"RESULT":{"CODE":"INFO-200"}}')
+        with patch.object(directory,'build_opener',return_value=SimpleNamespace(open=open_request)):
+            self.assertEqual({'RESULT':{'CODE':'INFO-200'}}, directory.download('https://open.neis.go.kr/hub/schoolInfo?Type=json'))
+
     def test_pagination_duplicates_and_duplicate_names_keep_identity(self):
         pages = [page([row('7010057'), row('7010057')], 3), page([row('7010058', office='J10')], 3)]
         calls = []
