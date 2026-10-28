@@ -19,7 +19,9 @@ PUBLIC_USER_AGENT = 'HannunMeal-DataSetup/1.2'
 
 
 class DirectoryError(Exception):
-    pass
+    def __init__(self, message, safe_details=None):
+        super().__init__(message)
+        self.safe_details = safe_details
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -78,11 +80,12 @@ def collect(key, fetch=download):
             if row.get('SCHUL_KND_SC_NM') not in TYPES:
                 continue
             values = [row.get(k, '') or '' for k in ['ATPT_OFCDC_SC_CODE','SD_SCHUL_CODE','SCHUL_NM','SCHUL_KND_SC_NM','LCTN_SC_NM','ORG_RDNMA']]
+            values = [value.strip() if isinstance(value,str) else value for value in values]
             values[5] = values[5] or values[4] # Region-only fallback when NEIS omits a street address.
             if values[0] not in OFFICES:
                 raise DirectoryError('Unsupported education office')
             if not isinstance(values[1],str) or not re.fullmatch(r'\d{7}', values[1]):
-                raise DirectoryError('Invalid school code')
+                raise DirectoryError('Invalid school code', {'isString':isinstance(values[1],str),'length':min(len(str(values[1])),1000),'asciiDigits':isinstance(values[1],str) and values[1].isascii() and values[1].isdigit()})
             for index, label in enumerate(['office','code','name','type','region','address']):
                 if not isinstance(values[index],str) or not values[index].strip():
                     raise DirectoryError('Missing school '+label)
@@ -171,7 +174,8 @@ def main():
         reason = ('HTTP_'+str(error.code)) if isinstance(error, HTTPError) and isinstance(error.code,int) else 'NETWORK' if isinstance(error,(URLError,TimeoutError)) else reasons.get(str(error),'VALIDATION') if isinstance(error,DirectoryError) else 'UNEXPECTED'
         if isinstance(error,HTTPError):
             error.close()
-        print(f'School directory generation failed [stage={stage}; reason={reason}]. Previous valid deployment and files are preserved.', file=sys.stderr)
+        details = json.dumps(error.safe_details) if isinstance(error,DirectoryError) and error.safe_details else ''
+        print(f'School directory generation failed [stage={stage}; reason={reason}] {details}. Previous valid deployment and files are preserved.', file=sys.stderr)
         return 1
     return 0
 

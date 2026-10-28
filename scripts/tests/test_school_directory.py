@@ -24,6 +24,11 @@ def page(rows, total):
 
 
 class SchoolDirectoryTests(unittest.TestCase):
+    def test_public_identity_whitespace_is_normalized_before_validation(self):
+        source=row(' 7010057 ',office=' B10 ')
+        result=directory.collect('test-issued-key',lambda _:page([source],1))
+        self.assertEqual(['B10','7010057'],result[0][:2])
+
     def test_neis_download_avoids_json_accept_header_that_triggers_http_500(self):
         class Response(io.BytesIO):
             status=200
