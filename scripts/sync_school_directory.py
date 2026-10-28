@@ -188,7 +188,7 @@ def main():
     except Exception as error:
         # URL/exception text may contain the query-string credential. Never print it or a traceback.
         reasons = {'Directory incomplete or unexpectedly smaller':'INCOMPLETE', 'Missing region or school type':'MISSING_REGION_OR_TYPE', 'Unsupported education office':'UNSUPPORTED_OFFICE', 'Invalid school code':'SCHOOL_CODE', 'Missing school region':'MISSING_SCHOOL_REGION', 'Missing school name':'MISSING_SCHOOL_NAME', 'Missing school address':'MISSING_SCHOOL_ADDRESS', 'Repeated page':'REPEATED_PAGE', 'Dataset changed during pagination':'DATASET_CHANGED', 'Pagination overrun':'PAGINATION_OVERRUN', 'Invalid pagination':'INVALID_PAGINATION', 'NEIS result failure':'NEIS_RESULT', 'NEIS_API_KEY is required':'MISSING_SECRET'}
-        reason = ('HTTP_'+str(error.code)) if isinstance(error, HTTPError) and isinstance(error.code,int) else 'NETWORK' if isinstance(error,(URLError,TimeoutError)) else reasons.get(str(error),'VALIDATION') if isinstance(error,DirectoryError) else 'UNEXPECTED'
+        reason = ('HTTP_'+str(error.code)) if isinstance(error, HTTPError) and isinstance(error.code,int) else 'NETWORK' if isinstance(error,(URLError,TimeoutError)) else reasons.get(str(error),'VALIDATION') if isinstance(error,DirectoryError) else 'UNEXPECTED_'+type(error).__name__
         if isinstance(error,HTTPError):
             error.close()
         details = json.dumps(error.safe_details) if isinstance(error,DirectoryError) and error.safe_details else ''
