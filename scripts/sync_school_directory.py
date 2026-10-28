@@ -79,8 +79,13 @@ def collect(key, fetch=download):
                 continue
             values = [row.get(k, '') or '' for k in ['ATPT_OFCDC_SC_CODE','SD_SCHUL_CODE','SCHUL_NM','SCHUL_KND_SC_NM','LCTN_SC_NM','ORG_RDNMA']]
             values[5] = values[5] or values[4] # Region-only fallback when NEIS omits a street address.
-            if values[0] not in OFFICES or not re.fullmatch(r'\d{7}', values[1]) or not all(isinstance(x, str) and x.strip() for x in values):
-                raise DirectoryError('Missing school identity or address')
+            if values[0] not in OFFICES:
+                raise DirectoryError('Unsupported education office')
+            if not isinstance(values[1],str) or not re.fullmatch(r'\d{7}', values[1]):
+                raise DirectoryError('Invalid school code')
+            for index, label in enumerate(['office','code','name','type','region','address']):
+                if not isinstance(values[index],str) or not values[index].strip():
+                    raise DirectoryError('Missing school '+label)
             values = [x.strip() for x in values]
             identity = tuple(values[:2])
             # Stable deduplication, regardless of upstream row ordering.
@@ -162,8 +167,10 @@ def main():
         print(f"Validated {index['count']} schools across 17 education offices; static directory ready.")
     except Exception as error:
         # URL/exception text may contain the query-string credential. Never print it or a traceback.
-        reasons = {'Directory incomplete or unexpectedly smaller':'INCOMPLETE', 'Missing region or school type':'MISSING_REGION_OR_TYPE', 'Missing school identity or address':'SCHOOL_IDENTITY', 'Repeated page':'REPEATED_PAGE', 'Dataset changed during pagination':'DATASET_CHANGED', 'Pagination overrun':'PAGINATION_OVERRUN', 'Invalid pagination':'INVALID_PAGINATION', 'NEIS result failure':'NEIS_RESULT', 'NEIS_API_KEY is required':'MISSING_SECRET'}
+        reasons = {'Directory incomplete or unexpectedly smaller':'INCOMPLETE', 'Missing region or school type':'MISSING_REGION_OR_TYPE', 'Unsupported education office':'UNSUPPORTED_OFFICE', 'Invalid school code':'SCHOOL_CODE', 'Missing school region':'MISSING_SCHOOL_REGION', 'Missing school name':'MISSING_SCHOOL_NAME', 'Missing school address':'MISSING_SCHOOL_ADDRESS', 'Repeated page':'REPEATED_PAGE', 'Dataset changed during pagination':'DATASET_CHANGED', 'Pagination overrun':'PAGINATION_OVERRUN', 'Invalid pagination':'INVALID_PAGINATION', 'NEIS result failure':'NEIS_RESULT', 'NEIS_API_KEY is required':'MISSING_SECRET'}
         reason = ('HTTP_'+str(error.code)) if isinstance(error, HTTPError) and isinstance(error.code,int) else 'NETWORK' if isinstance(error,(URLError,TimeoutError)) else reasons.get(str(error),'VALIDATION') if isinstance(error,DirectoryError) else 'UNEXPECTED'
+        if isinstance(error,HTTPError):
+            error.close()
         print(f'School directory generation failed [stage={stage}; reason={reason}]. Previous valid deployment and files are preserved.', file=sys.stderr)
         return 1
     return 0
