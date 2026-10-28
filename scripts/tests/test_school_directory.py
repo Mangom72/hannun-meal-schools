@@ -24,6 +24,14 @@ def page(rows, total):
 
 
 class SchoolDirectoryTests(unittest.TestCase):
+    def test_known_overseas_office_is_out_of_scope_but_unknown_offices_still_fail(self):
+        stats={}
+        result=directory.collect('test-issued-key',lambda _:page([row('7010057'),row('7000001',office='V10')],2),stats=stats)
+        self.assertEqual(1,len(result))
+        self.assertEqual({'outsideSouthKorea':1},stats)
+        with self.assertRaises(directory.DirectoryError):
+            directory.collect('test-issued-key',lambda _:page([row('7000001',office='Z99')],1))
+
     def test_official_alphanumeric_national_school_code_is_retained(self):
         result=directory.collect('test-issued-key',lambda _:page([row('C035903',office='N10')],1))
         self.assertEqual(['N10','C035903'],result[0][:2])

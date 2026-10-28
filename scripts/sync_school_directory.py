@@ -82,6 +82,11 @@ def collect(key, fetch=download, *, stats=None):
             values = [row.get(k, '') or '' for k in ['ATPT_OFCDC_SC_CODE','SD_SCHUL_CODE','SCHUL_NM','SCHUL_KND_SC_NM','LCTN_SC_NM','ORG_RDNMA']]
             values = [value.strip() if isinstance(value,str) else value for value in values]
             values[5] = values[5] or values[4] # Region-only fallback when NEIS omits a street address.
+            if values[0] == 'V10':
+                # NEIS also returns overseas Korean schools. The app covers South Korea's 17 offices.
+                if stats is not None:
+                    stats['outsideSouthKorea'] = stats.get('outsideSouthKorea',0)+1
+                continue
             if values[0] not in OFFICES:
                 details = {}
                 for field,value in [('publicOfficeCode',values[0]),('publicRegion',values[4]),('publicSchoolName',values[2])]:
@@ -184,6 +189,8 @@ def main():
         index = publish(rows, args.output, previous, preserved=preserved)
         if stats.get('withoutSchoolCode'):
             print(f"Omitted {stats['withoutSchoolCode']} official rows without a NEIS school code; no lookup identities were invented.")
+        if stats.get('outsideSouthKorea'):
+            print(f"Excluded {stats['outsideSouthKorea']} V10 overseas-school rows outside South Korea's 17 offices.")
         print(f"Validated {index['count']} schools across 17 education offices; static directory ready.")
     except Exception as error:
         # URL/exception text may contain the query-string credential. Never print it or a traceback.
