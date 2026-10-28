@@ -83,7 +83,11 @@ def collect(key, fetch=download, *, stats=None):
             values = [value.strip() if isinstance(value,str) else value for value in values]
             values[5] = values[5] or values[4] # Region-only fallback when NEIS omits a street address.
             if values[0] not in OFFICES:
-                raise DirectoryError('Unsupported education office')
+                details = {}
+                for field,value in [('publicOfficeCode',values[0]),('publicRegion',values[4]),('publicSchoolName',values[2])]:
+                    if isinstance(value,str) and 0<len(value)<=80 and key not in value:
+                        details[field]=value
+                raise DirectoryError('Unsupported education office',details)
             if values[1] == '':
                 # Some official directory rows have no NEIS lookup identity. Never invent one.
                 if stats is not None:
