@@ -10,10 +10,12 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 from urllib.request import Request, build_opener, HTTPRedirectHandler
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 
 OFFICES = {'B10','C10','D10','E10','F10','G10','H10','I10','J10','K10','M10','N10','P10','Q10','R10','S10','T10'}
 TYPES = {'초등학교', '중학교', '고등학교'}
+PUBLIC_USER_AGENT = 'HannunMeal-DataSetup/1.2'
 
 
 class DirectoryError(Exception):
@@ -27,7 +29,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 def download_bytes(url):
     # NEIS selects JSON with Type=json; Accept: application/json returns HTTP 500.
-    with build_opener(NoRedirect).open(Request(url, headers={'Accept': '*/*'}), timeout=30) as response:
+    with build_opener(NoRedirect).open(Request(url, headers={'Accept': '*/*', 'User-Agent': PUBLIC_USER_AGENT}), timeout=30) as response:
         if response.status != 200:
             raise DirectoryError('HTTP failure')
         data = response.read(8 * 1024 * 1024 + 1)
@@ -131,6 +133,7 @@ def main():
     p.add_argument('--output', type=Path, default=Path('pages'))
     p.add_argument('--previous-base', help='Existing HTTPS Pages base URL for completeness comparison')
     args = p.parse_args()
+    stage = 'previous-cache'
     try:
         previous = 0
         preserved = {}
@@ -150,15 +153,19 @@ def main():
                 preserved[index['file']] = download_bytes(args.previous_base.rstrip('/') + '/' + index['file'])
             except HTTPError as e:
                 if e.code != 404: raise
+        stage = 'neis-download'
         key = os.environ.get('NEIS_API_KEY', '')
         rows = collect(key)
         if key and key in json.dumps(rows, ensure_ascii=False):
             raise DirectoryError('Credential appeared in upstream data')
+        stage = 'validate-publish'
         index = publish(rows, args.output, previous, preserved=preserved)
         print(f"Validated {index['count']} schools across 17 education offices; static directory ready.")
-    except Exception:
+    except Exception as error:
         # URL/exception text may contain the query-string credential. Never print it or a traceback.
-        print('School directory generation failed. Previous valid deployment and files are preserved.', file=sys.stderr)
+        reasons = {'Directory incomplete or unexpectedly smaller':'INCOMPLETE', 'Missing region or school type':'MISSING_REGION_OR_TYPE', 'Missing school identity or address':'SCHOOL_IDENTITY', 'Repeated page':'REPEATED_PAGE', 'Dataset changed during pagination':'DATASET_CHANGED', 'Pagination overrun':'PAGINATION_OVERRUN', 'Invalid pagination':'INVALID_PAGINATION', 'NEIS result failure':'NEIS_RESULT', 'NEIS_API_KEY is required':'MISSING_SECRET'}
+        reason = ('HTTP_'+str(error.code)) if isinstance(error, HTTPError) and isinstance(error.code,int) else 'NETWORK' if isinstance(error,(URLError,TimeoutError)) else reasons.get(str(error),'VALIDATION') if isinstance(error,DirectoryError) else 'UNEXPECTED'
+        print(f'School directory generation failed [stage={stage}; reason={reason}]. Previous valid deployment and files are preserved.', file=sys.stderr)
         return 1
     return 0
 

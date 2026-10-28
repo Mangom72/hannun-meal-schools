@@ -31,6 +31,7 @@ class SchoolDirectoryTests(unittest.TestCase):
             if request.get_header('Accept') == 'application/json':
                 raise HTTPError(request.full_url,500,'NEIS content negotiation failure',None,None)
             self.assertEqual('*/*',request.get_header('Accept'))
+            self.assertEqual(directory.PUBLIC_USER_AGENT,request.get_header('User-agent'))
             return Response(b'{"RESULT":{"CODE":"INFO-200"}}')
         with patch.object(directory,'build_opener',return_value=SimpleNamespace(open=open_request)):
             self.assertEqual({'RESULT':{'CODE':'INFO-200'}}, directory.download('https://open.neis.go.kr/hub/schoolInfo?Type=json'))
@@ -79,6 +80,12 @@ class SchoolDirectoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as path, patch.dict(os.environ,{'NEIS_API_KEY':'private-secret'}), patch('sys.argv',['sync','--output',path]), patch.object(directory,'download',side_effect=error), patch.object(directory,'collect',side_effect=error), patch('sys.stderr',new_callable=io.StringIO) as stderr:
             self.assertEqual(1,directory.main())
             self.assertNotIn('private-secret',stderr.getvalue())
+
+    def test_http_failure_reports_safe_stage_and_status_without_url_or_key(self):
+        with tempfile.TemporaryDirectory() as path, patch('sys.argv',['sync','--output',path]), patch.object(directory,'collect',side_effect=HTTPError('https://open.neis.go.kr/?KEY=private-secret',500,'private-secret',None,None)), patch('sys.stderr',new_callable=io.StringIO) as output:
+            self.assertEqual(1,directory.main())
+        self.assertIn('stage=neis-download; reason=HTTP_500',output.getvalue())
+        self.assertNotIn('private-secret',output.getvalue())
 
     def test_large_unexpected_drop_rejected(self):
         with self.assertRaises(directory.DirectoryError):
