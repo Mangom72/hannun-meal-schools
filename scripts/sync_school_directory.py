@@ -144,7 +144,6 @@ def main():
             if not args.previous_base.startswith('https://'):
                 raise DirectoryError('Previous base must use HTTPS')
             # 404 means first deployment; other failures must not skip the comparison silently.
-            from urllib.error import HTTPError
             try:
                 index = download(args.previous_base.rstrip('/') + '/schools-index.json')
                 if not re.fullmatch(r'[a-f0-9]{64}', index['sha256']) or index['file'] != f"schools.{index['sha256']}.json":
