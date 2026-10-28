@@ -1,0 +1,62 @@
+name: Nationwide school directory and Pages
+on:
+  schedule:
+    - cron: '17 18 * * 0' # Monday 03:17 Asia/Seoul
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['pages/**', 'scripts/sync_school_directory.py', '.github/workflows/school-directory.yml']
+permissions:
+  contents: read
+concurrency:
+  group: school-directory-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    if: ${{ vars.DIRECTORY_READY == 'true' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Test directory safety before exposing the key
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Determine existing Pages URL
+        id: previous
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+          p=subprocess.run(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/pages'],capture_output=True,text=True)
+          if p.returncode:
+              raise SystemExit('Enable GitHub Pages with GitHub Actions as the source before running this workflow.')
+          base=json.loads(p.stdout)['html_url']
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f: f.write('base='+base+'\n')
+          PY
+      - name: Generate complete nationwide directory
+        env:
+          NEIS_API_KEY: ${{ secrets.NEIS_API_KEY }}
+          PREVIOUS_BASE: ${{ steps.previous.outputs.base }}
+        run: |
+          python3 scripts/sync_school_directory.py --output pages --previous-base "$PREVIOUS_BASE"
+          python3 scripts/check_client_security.py --pages pages
+      - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        with:
+          path: pages
+  deploy:
+    needs: build # Failure never replaces the last working Pages deployment.
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.publish.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e
+        id: publish
