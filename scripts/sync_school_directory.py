@@ -61,7 +61,7 @@ def page(root):
     return total, rows
 
 
-def collect(key, fetch=download):
+def collect(key, fetch=download, *, stats=None):
     if not key.strip():
         raise DirectoryError('NEIS_API_KEY is required')
     result, fingerprints, read, expected = {}, set(), 0, None
@@ -84,10 +84,15 @@ def collect(key, fetch=download):
             values[5] = values[5] or values[4] # Region-only fallback when NEIS omits a street address.
             if values[0] not in OFFICES:
                 raise DirectoryError('Unsupported education office')
+            if values[1] == '':
+                # Some official directory rows have no NEIS lookup identity. Never invent one.
+                if stats is not None:
+                    stats['withoutSchoolCode'] = stats.get('withoutSchoolCode',0)+1
+                continue
             if not isinstance(values[1],str) or not re.fullmatch(r'\d{7}', values[1]):
                 raise DirectoryError('Invalid school code', {'isString':isinstance(values[1],str),'length':min(len(str(values[1])),1000),'asciiDigits':isinstance(values[1],str) and values[1].isascii() and values[1].isdigit()})
-            for index, label in enumerate(['office','code','name','type','region','address']):
-                if not isinstance(values[index],str) or not values[index].strip():
+            for field_index, label in enumerate(['office','code','name','type','region','address']):
+                if not isinstance(values[field_index],str) or not values[field_index].strip():
                     raise DirectoryError('Missing school '+label)
             values = [x.strip() for x in values]
             identity = tuple(values[:2])
@@ -162,11 +167,14 @@ def main():
                 if e.code != 404: raise
         stage = 'neis-download'
         key = os.environ.get('NEIS_API_KEY', '')
-        rows = collect(key)
+        stats = {}
+        rows = collect(key, stats=stats)
         if key and key in json.dumps(rows, ensure_ascii=False):
             raise DirectoryError('Credential appeared in upstream data')
         stage = 'validate-publish'
         index = publish(rows, args.output, previous, preserved=preserved)
+        if stats.get('withoutSchoolCode'):
+            print(f"Omitted {stats['withoutSchoolCode']} official rows without a NEIS school code; no lookup identities were invented.")
         print(f"Validated {index['count']} schools across 17 education offices; static directory ready.")
     except Exception as error:
         # URL/exception text may contain the query-string credential. Never print it or a traceback.

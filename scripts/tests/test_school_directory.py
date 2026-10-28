@@ -24,6 +24,13 @@ def page(rows, total):
 
 
 class SchoolDirectoryTests(unittest.TestCase):
+    def test_rows_without_an_official_lookup_code_are_counted_without_inventing_ids(self):
+        stats={}
+        result=directory.collect('test-issued-key',lambda _:page([row(''),row('7010057')],2),stats=stats)
+        self.assertEqual(1,len(result))
+        self.assertEqual('7010057',result[0][1])
+        self.assertEqual({'withoutSchoolCode':1},stats)
+
     def test_public_identity_whitespace_is_normalized_before_validation(self):
         source=row(' 7010057 ',office=' B10 ')
         result=directory.collect('test-issued-key',lambda _:page([source],1))
